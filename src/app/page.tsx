@@ -48,6 +48,23 @@ export default function Home() {
             Read our docs
           </a>
         </div>
+
+        <div className="text-center py-10">
+          <h1 className="text-4xl font-bold mb-4">Bitte AI Agent</h1>
+          <p className="text-xl mb-8">NextJS Template</p>
+          
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-2xl mx-auto">
+            <a href="/bitcoin" className="p-4 border rounded-lg hover:bg-gray-50 transition-colors">
+              <h2 className="text-xl font-bold mb-2">Bitcoin Transactions</h2>
+              <p>Create and sign Bitcoin transactions using NEAR Chain Signatures</p>
+            </a>
+            
+            <a href="https://bitte.ai" target="_blank" rel="noopener noreferrer" className="p-4 border rounded-lg hover:bg-gray-50 transition-colors">
+              <h2 className="text-xl font-bold mb-2">Bitte AI</h2>
+              <p>Learn more about Bitte AI agents</p>
+            </a>
+          </div>
+        </div>
       </main>
       <footer className="row-start-3 flex gap-6 flex-wrap items-center justify-center">
         <a
