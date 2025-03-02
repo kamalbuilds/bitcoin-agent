@@ -1,5 +1,10 @@
-import { NextResponse } from 'next/server';
-import { parseNearAmount } from 'near-api-js/lib/utils/format';
+import { NextRequest, NextResponse } from 'next/server';
+import { 
+  createBitcoinTransferTransaction, 
+  createEtchRuneTransaction,
+  createTransferRuneTransaction,
+  deriveAddressFromNearAccount
+} from '@/app/services/bitcoinChainSignatures';
 import { ACCOUNT_ID } from '@/app/config';
 
 /**
@@ -8,87 +13,114 @@ import { ACCOUNT_ID } from '@/app/config';
  * This endpoint creates Bitcoin transactions that can be signed using NEAR chain signatures.
  * It supports standard Bitcoin transfers, Runes etching and transfers, and more.
  */
-export async function GET(request: Request) {
+export async function GET(request: NextRequest) {
   try {
-    const { searchParams } = new URL(request.url);
+    const searchParams = request.nextUrl.searchParams;
+    const action = searchParams.get('action');
+    const receiver = searchParams.get('receiver');
+    const derivationPath = searchParams.get('derivationPath') || 'bitcoin-1';
+    const amount = searchParams.get('amount');
+    const runeTicker = searchParams.get('runeTicker');
+    const runeAmount = searchParams.get('runeAmount');
+    const runeDecimals = searchParams.get('runeDecimals');
+    const runeMintHeight = searchParams.get('runeMintHeight');
     
-    // Get common parameters
-    const action = searchParams.get('action') || 'transfer'; // transfer, etch_rune, transfer_rune
-    const receiver = searchParams.get('receiver'); // Bitcoin receiver address
-    const amount = searchParams.get('amount'); // Amount in BTC or satoshis
-    const derivationPath = searchParams.get('derivationPath') || 'bitcoin-1'; // Path used to derive the Bitcoin address from NEAR account
+    // Get the accountId from the request or fall back to the default
+    const accountId = searchParams.get('accountId') || ACCOUNT_ID;
     
-    // Rune-specific parameters
-    const runeTicker = searchParams.get('runeTicker'); // Ticker for the rune
-    const runeAmount = searchParams.get('runeAmount'); // Amount of runes
-    const runeDecimals = searchParams.get('runeDecimals') || '0'; // Decimals for the rune
-    const runeMintHeight = searchParams.get('runeMintHeight'); // Block height for rune mint
-
-    // Validation
+    if (!accountId) {
+      return NextResponse.json(
+        { error: 'NEAR account ID is required' },
+        { status: 400 }
+      );
+    }
+    
+    if (!action) {
+      return NextResponse.json(
+        { error: 'Action is required' },
+        { status: 400 }
+      );
+    }
+    
     if (!receiver) {
-      return NextResponse.json({ error: 'Receiver address is required' }, { status: 400 });
+      return NextResponse.json(
+        { error: 'Receiver address is required' },
+        { status: 400 }
+      );
     }
-
-    if (!amount && (action === 'transfer' || action === 'transfer_rune')) {
-      return NextResponse.json({ error: 'Amount is required for transfers' }, { status: 400 });
-    }
-
-    if (action === 'etch_rune' && (!runeTicker || !runeMintHeight)) {
-      return NextResponse.json({ error: 'Rune ticker and mint height are required for etching' }, { status: 400 });
-    }
-
-    if (action === 'transfer_rune' && (!runeTicker || !runeAmount)) {
-      return NextResponse.json({ error: 'Rune ticker and amount are required for rune transfers' }, { status: 400 });
-    }
-
-    // Create the appropriate transaction payload based on the action
-    let transactionPayload: any = {
-      nearAccountId: ACCOUNT_ID,
-      derivationPath: derivationPath,
-      receiver: receiver,
-    };
     
-    // Standard Bitcoin transfer
-    if (action === 'transfer') {
-      transactionPayload = {
-        ...transactionPayload,
-        action: 'transfer',
-        amountSatoshis: parseAmount(amount || '0'),
-      };
+    // Derive the Bitcoin address from the NEAR account
+    const { address: senderAddress, publicKey } = await deriveAddressFromNearAccount(accountId, derivationPath);
+    
+    let transactionPayload;
+    
+    switch (action) {
+      case 'transfer':
+        if (!amount) {
+          return NextResponse.json(
+            { error: 'Amount is required for transfer' },
+            { status: 400 }
+          );
+        }
+        
+        transactionPayload = await createBitcoinTransferTransaction({
+          senderAddress,
+          receiverAddress: receiver,
+          amount: parseFloat(amount),
+          publicKey
+        });
+        break;
+        
+      case 'etch_rune':
+        if (!runeTicker) {
+          return NextResponse.json(
+            { error: 'Rune ticker is required for etch_rune' },
+            { status: 400 }
+          );
+        }
+        
+        transactionPayload = await createEtchRuneTransaction({
+          senderAddress,
+          receiverAddress: receiver,
+          runeTicker,
+          decimals: runeDecimals ? parseInt(runeDecimals) : 0,
+          mintHeight: runeMintHeight ? parseInt(runeMintHeight) : 840000,
+          publicKey
+        });
+        break;
+        
+      case 'transfer_rune':
+        if (!amount || !runeTicker || !runeAmount) {
+          return NextResponse.json(
+            { error: 'Amount, rune ticker, and rune amount are required for transfer_rune' },
+            { status: 400 }
+          );
+        }
+        
+        transactionPayload = await createTransferRuneTransaction({
+          senderAddress,
+          receiverAddress: receiver,
+          amount: parseFloat(amount),
+          runeTicker,
+          runeAmount: parseInt(runeAmount),
+          publicKey
+        });
+        break;
+        
+      default:
+        return NextResponse.json(
+          { error: `Unsupported action: ${action}` },
+          { status: 400 }
+        );
     }
-    // Etch a new rune
-    else if (action === 'etch_rune') {
-      const opReturnHex = generateRuneEtchOpReturn(runeTicker || '', parseInt(runeDecimals), parseInt(runeMintHeight || '0'));
-      transactionPayload = {
-        ...transactionPayload,
-        action: 'etch_rune',
-        amountSatoshis: 10000, // Standard small amount for inscription
-        opReturnHex: opReturnHex,
-        runeTicker: runeTicker,
-        runeDecimals: runeDecimals,
-      };
-    }
-    // Transfer runes
-    else if (action === 'transfer_rune') {
-      const opReturnHex = generateRuneTransferOpReturn(runeTicker || '', parseAmount(runeAmount || '0'));
-      transactionPayload = {
-        ...transactionPayload,
-        action: 'transfer_rune',
-        amountSatoshis: parseAmount(amount || '0'),
-        opReturnHex: opReturnHex,
-        runeTicker: runeTicker,
-        runeAmount: runeAmount,
-      };
-    }
-
-    return NextResponse.json({ 
-      transactionPayload,
-      message: `Bitcoin ${action} transaction payload created successfully`,
-      instructions: "To sign and broadcast this transaction, use the NEAR Chain Signatures service with the provided derivation path."
-    });
-  } catch (error) {
-    console.error('Error generating Bitcoin transaction payload:', error);
-    return NextResponse.json({ error: 'Failed to generate Bitcoin transaction payload' }, { status: 500 });
+    
+    return NextResponse.json({ transactionPayload });
+  } catch (error: any) {
+    console.error('Error creating Bitcoin transaction:', error);
+    return NextResponse.json(
+      { error: error.message || 'Failed to create transaction' },
+      { status: 500 }
+    );
   }
 }
 

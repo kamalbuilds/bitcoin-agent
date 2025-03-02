@@ -9,35 +9,170 @@
  * - Signing transactions using the NEAR MPC service
  */
 
+import * as bitcoin from 'bitcoinjs-lib';
+import * as bs58check from 'bs58check';
+import { sha256 } from 'bitcoinjs-lib/src/crypto';
+
 // Constants
 const MPC_CONTRACT = 'v1.signer-prod.testnet';
 const MPC_PUBLIC_KEY = 'secp256k1:4NfTiv3UsGahebgTaHyD9vF8KYKMBnfd6kh94mK6xv8fGBiJB8TBtFMP5WWXz6B89Ac1fbpzPwAvoyQebemHFwx3';
 
 /**
- * Derives a Bitcoin address from a NEAR account and derivation path
- * 
- * @param nearAccountId - The NEAR account ID
- * @param derivationPath - The derivation path (e.g. "bitcoin-1")
- * @returns The derived Bitcoin address and public key
+ * Derives a Bitcoin address from a NEAR account ID using a derivation path
  */
 export async function deriveAddressFromNearAccount(
   nearAccountId: string,
   derivationPath: string = 'bitcoin-1'
 ): Promise<{ address: string; publicKey: string }> {
-  // In a real implementation, this would make an RPC call or use the SDK to derive the address
-  // For this example, we'll return a mock implementation
-  
-  // The actual derivation involves complex cryptographic operations that would typically
-  // be handled by a library like signet.js in a real application
-  
-  // Mock implementation for demonstration purposes
-  const mockAddress = `tb1q${hashString(nearAccountId + derivationPath).substring(0, 38)}`;
-  const mockPublicKey = `04${hashString(nearAccountId + derivationPath + 'pubkey')}`;
-  
-  return {
-    address: mockAddress,
-    publicKey: mockPublicKey
-  };
+  try {
+    // In a real implementation, this would use NEAR Chain Signatures to derive the address
+    // For now, we'll simulate it by creating a deterministic address based on the inputs
+    
+    // Create a deterministic seed from the NEAR account ID and derivation path
+    const seedData = `${nearAccountId}:${derivationPath}`;
+    const seedHash = sha256(Buffer.from(seedData));
+    
+    // For simulation purposes, create a simple address from the hash
+    // In a real implementation, this would use proper Bitcoin address derivation
+    const mockAddress = `bc1q${seedHash.slice(0, 20).toString('hex')}`;
+    const mockPublicKey = seedHash.toString('hex');
+    
+    return {
+      address: mockAddress,
+      publicKey: mockPublicKey
+    };
+  } catch (error) {
+    console.error('Error deriving Bitcoin address:', error);
+    throw new Error('Failed to derive Bitcoin address from NEAR account');
+  }
+}
+
+/**
+ * Creates a Bitcoin transfer transaction
+ */
+export async function createBitcoinTransferTransaction({
+  senderAddress,
+  receiverAddress,
+  amount,
+  publicKey
+}: {
+  senderAddress: string;
+  receiverAddress: string;
+  amount: number;
+  publicKey: string;
+}) {
+  try {
+    // Convert amount to satoshis if it's in BTC
+    const amountSatoshis = amount < 1 ? Math.floor(amount * 100000000) : Math.floor(amount);
+    
+    // In a real implementation, this would create an actual Bitcoin transaction
+    // For now, we'll return a simulated transaction payload
+    return {
+      type: 'bitcoin_transfer',
+      senderAddress,
+      receiverAddress,
+      amountSatoshis,
+      fee: 1000, // 1000 satoshis fee
+      publicKey,
+      // This would be the unsigned transaction hex in a real implementation
+      unsignedTxHex: `simulated_unsigned_tx_${Date.now()}`,
+    };
+  } catch (error) {
+    console.error('Error creating Bitcoin transfer transaction:', error);
+    throw new Error('Failed to create Bitcoin transfer transaction');
+  }
+}
+
+/**
+ * Creates a Rune etching transaction
+ */
+export async function createEtchRuneTransaction({
+  senderAddress,
+  receiverAddress,
+  runeTicker,
+  decimals = 0,
+  mintHeight = 840000,
+  publicKey
+}: {
+  senderAddress: string;
+  receiverAddress: string;
+  runeTicker: string;
+  decimals?: number;
+  mintHeight?: number;
+  publicKey: string;
+}) {
+  try {
+    // Generate OP_RETURN data for the Rune etching
+    const opReturnData = `RUNE_ETCH:${runeTicker}:${decimals}:${mintHeight}`;
+    const opReturnHex = Buffer.from(opReturnData).toString('hex');
+    
+    // In a real implementation, this would create an actual Bitcoin transaction with OP_RETURN
+    // For now, we'll return a simulated transaction payload
+    return {
+      type: 'rune_etch',
+      senderAddress,
+      receiverAddress,
+      amountSatoshis: 10000, // Standard small amount for inscription
+      fee: 2000, // Higher fee for OP_RETURN
+      runeTicker,
+      decimals,
+      mintHeight,
+      opReturnHex,
+      publicKey,
+      // This would be the unsigned transaction hex in a real implementation
+      unsignedTxHex: `simulated_unsigned_rune_etch_tx_${Date.now()}`,
+    };
+  } catch (error) {
+    console.error('Error creating Rune etch transaction:', error);
+    throw new Error('Failed to create Rune etch transaction');
+  }
+}
+
+/**
+ * Creates a Rune transfer transaction
+ */
+export async function createTransferRuneTransaction({
+  senderAddress,
+  receiverAddress,
+  amount,
+  runeTicker,
+  runeAmount,
+  publicKey
+}: {
+  senderAddress: string;
+  receiverAddress: string;
+  amount: number;
+  runeTicker: string;
+  runeAmount: number;
+  publicKey: string;
+}) {
+  try {
+    // Convert amount to satoshis if it's in BTC
+    const amountSatoshis = amount < 1 ? Math.floor(amount * 100000000) : Math.floor(amount);
+    
+    // Generate OP_RETURN data for the Rune transfer
+    const opReturnData = `RUNE_TRANSFER:${runeTicker}:${runeAmount}`;
+    const opReturnHex = Buffer.from(opReturnData).toString('hex');
+    
+    // In a real implementation, this would create an actual Bitcoin transaction with OP_RETURN
+    // For now, we'll return a simulated transaction payload
+    return {
+      type: 'rune_transfer',
+      senderAddress,
+      receiverAddress,
+      amountSatoshis,
+      fee: 1500, // Medium fee for OP_RETURN
+      runeTicker,
+      runeAmount,
+      opReturnHex,
+      publicKey,
+      // This would be the unsigned transaction hex in a real implementation
+      unsignedTxHex: `simulated_unsigned_rune_transfer_tx_${Date.now()}`,
+    };
+  } catch (error) {
+    console.error('Error creating Rune transfer transaction:', error);
+    throw new Error('Failed to create Rune transfer transaction');
+  }
 }
 
 /**

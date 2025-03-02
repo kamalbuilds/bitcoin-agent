@@ -3,12 +3,14 @@
 import { useState, useEffect } from 'react';
 import { deriveAddressFromNearAccount } from '@/app/services/bitcoinChainSignatures';
 import { ACCOUNT_ID } from '@/app/config';
+import TransactionSigner from './TransactionSigner';
 
 interface BitcoinTransactionProps {
   onTransactionCreated?: (transactionPayload: any) => void;
+  nearAccountId?: string;
 }
 
-export default function BitcoinTransaction({ onTransactionCreated }: BitcoinTransactionProps) {
+export default function BitcoinTransaction({ onTransactionCreated, nearAccountId }: BitcoinTransactionProps) {
   // Transaction form state
   const [action, setAction] = useState<'transfer' | 'etch_rune' | 'transfer_rune'>('transfer');
   const [receiver, setReceiver] = useState('');
@@ -25,15 +27,19 @@ export default function BitcoinTransaction({ onTransactionCreated }: BitcoinTran
   const [isLoading, setIsLoading] = useState(false);
   const [transactionPayload, setTransactionPayload] = useState<any>(null);
   const [error, setError] = useState('');
+  const [signedTransaction, setSignedTransaction] = useState<any>(null);
   
-  // Derive Bitcoin address from NEAR account on component mount
+  // Use the provided nearAccountId or fall back to the config value
+  const accountId = nearAccountId || ACCOUNT_ID;
+  
+  // Derive Bitcoin address from NEAR account on component mount or when accountId changes
   useEffect(() => {
     async function fetchAddress() {
-      if (!ACCOUNT_ID) return;
+      if (!accountId) return;
       
       try {
         setIsLoading(true);
-        const { address, publicKey } = await deriveAddressFromNearAccount(ACCOUNT_ID, derivationPath);
+        const { address, publicKey } = await deriveAddressFromNearAccount(accountId, derivationPath);
         setBitcoinAddress(address);
         setBitcoinPublicKey(publicKey);
       } catch (err) {
@@ -45,15 +51,15 @@ export default function BitcoinTransaction({ onTransactionCreated }: BitcoinTran
     }
     
     fetchAddress();
-  }, [derivationPath]);
+  }, [accountId, derivationPath]);
   
   // Update address when derivation path changes
   useEffect(() => {
     async function updateAddress() {
-      if (!ACCOUNT_ID) return;
+      if (!accountId) return;
       
       try {
-        const { address, publicKey } = await deriveAddressFromNearAccount(ACCOUNT_ID, derivationPath);
+        const { address, publicKey } = await deriveAddressFromNearAccount(accountId, derivationPath);
         setBitcoinAddress(address);
         setBitcoinPublicKey(publicKey);
       } catch (err) {
@@ -62,16 +68,22 @@ export default function BitcoinTransaction({ onTransactionCreated }: BitcoinTran
     }
     
     updateAddress();
-  }, [derivationPath]);
+  }, [accountId, derivationPath]);
   
   async function createTransaction() {
     setIsLoading(true);
     setError('');
     setTransactionPayload(null);
+    setSignedTransaction(null);
     
     try {
       // Build URL with query parameters based on the selected action
       let url = `/api/tools/bitcoin-transaction?action=${action}&receiver=${receiver}&derivationPath=${derivationPath}`;
+      
+      // Add the accountId to the request if it's provided
+      if (accountId) {
+        url += `&accountId=${encodeURIComponent(accountId)}`;
+      }
       
       if (action === 'transfer' || action === 'transfer_rune') {
         url += `&amount=${amount}`;
@@ -105,137 +117,196 @@ export default function BitcoinTransaction({ onTransactionCreated }: BitcoinTran
     }
   }
   
+  const handleTransactionSigned = (signedTx: any) => {
+    setSignedTransaction(signedTx);
+  };
+  
+  const resetForm = () => {
+    setTransactionPayload(null);
+    setSignedTransaction(null);
+    setError('');
+  };
+  
   return (
-    <div className="p-4 bg-white rounded-lg shadow">
-      <h2 className="text-xl font-bold mb-4">Bitcoin Transaction with NEAR Chain Signatures</h2>
+    <div className="p-6 bg-gray-800 rounded-lg shadow-lg border border-gray-700">
+      <h2 className="text-2xl font-bold mb-4 text-orange-400">Bitcoin Transaction with NEAR Chain Signatures</h2>
       
-      <div className="mb-4">
-        <p className="text-sm text-gray-600">Your Bitcoin address: {isLoading ? 'Loading...' : bitcoinAddress || 'Not available'}</p>
+      <div className="mb-4 p-3 bg-gray-900 rounded-lg">
+        <p className="text-gray-300">
+          Your Bitcoin address: {isLoading ? 
+            <span className="animate-pulse">Loading...</span> : 
+            <span className="font-mono text-orange-300">{bitcoinAddress || 'Not available'}</span>
+          }
+        </p>
       </div>
       
-      <div className="mb-4">
-        <label className="block text-sm font-medium text-gray-700 mb-1">Action Type</label>
-        <select
-          className="w-full p-2 border border-gray-300 rounded"
-          value={action}
-          onChange={(e) => setAction(e.target.value as any)}
-        >
-          <option value="transfer">Bitcoin Transfer</option>
-          <option value="etch_rune">Etch Rune</option>
-          <option value="transfer_rune">Transfer Rune</option>
-        </select>
-      </div>
-      
-      <div className="mb-4">
-        <label className="block text-sm font-medium text-gray-700 mb-1">Derivation Path</label>
-        <input
-          type="text"
-          className="w-full p-2 border border-gray-300 rounded"
-          value={derivationPath}
-          onChange={(e) => setDerivationPath(e.target.value)}
-          placeholder="bitcoin-1"
-        />
-      </div>
-      
-      <div className="mb-4">
-        <label className="block text-sm font-medium text-gray-700 mb-1">Receiver Address</label>
-        <input
-          type="text"
-          className="w-full p-2 border border-gray-300 rounded"
-          value={receiver}
-          onChange={(e) => setReceiver(e.target.value)}
-          placeholder="Bitcoin address"
-        />
-      </div>
-      
-      {(action === 'transfer' || action === 'transfer_rune') && (
-        <div className="mb-4">
-          <label className="block text-sm font-medium text-gray-700 mb-1">Amount (BTC)</label>
-          <input
-            type="text"
-            className="w-full p-2 border border-gray-300 rounded"
-            value={amount}
-            onChange={(e) => setAmount(e.target.value)}
-            placeholder="0.0001"
-          />
-        </div>
-      )}
-      
-      {(action === 'etch_rune' || action === 'transfer_rune') && (
-        <div className="mb-4">
-          <label className="block text-sm font-medium text-gray-700 mb-1">Rune Ticker</label>
-          <input
-            type="text"
-            className="w-full p-2 border border-gray-300 rounded"
-            value={runeTicker}
-            onChange={(e) => setRuneTicker(e.target.value)}
-            placeholder="EXAMPLE"
-          />
-        </div>
-      )}
-      
-      {action === 'etch_rune' && (
+      {!signedTransaction ? (
         <>
           <div className="mb-4">
-            <label className="block text-sm font-medium text-gray-700 mb-1">Decimals</label>
-            <input
-              type="text"
-              className="w-full p-2 border border-gray-300 rounded"
-              value={runeDecimals}
-              onChange={(e) => setRuneDecimals(e.target.value)}
-              placeholder="0"
-            />
+            <label className="block text-sm font-medium text-gray-300 mb-2">Action Type</label>
+            <select
+              className="w-full p-3 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-orange-500"
+              value={action}
+              onChange={(e) => setAction(e.target.value as any)}
+            >
+              <option value="transfer">Bitcoin Transfer</option>
+              <option value="etch_rune">Etch Rune</option>
+              <option value="transfer_rune">Transfer Rune</option>
+            </select>
           </div>
+          
           <div className="mb-4">
-            <label className="block text-sm font-medium text-gray-700 mb-1">Mint Height</label>
+            <label className="block text-sm font-medium text-gray-300 mb-2">Derivation Path</label>
             <input
               type="text"
-              className="w-full p-2 border border-gray-300 rounded"
-              value={runeMintHeight}
-              onChange={(e) => setRuneMintHeight(e.target.value)}
-              placeholder="840000"
+              className="w-full p-3 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-orange-500"
+              value={derivationPath}
+              onChange={(e) => setDerivationPath(e.target.value)}
+              placeholder="bitcoin-1"
+            />
+            <p className="mt-1 text-xs text-gray-400">Path used to derive Bitcoin address from your NEAR account</p>
+          </div>
+          
+          <div className="mb-4">
+            <label className="block text-sm font-medium text-gray-300 mb-2">Receiver Address</label>
+            <input
+              type="text"
+              className="w-full p-3 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-orange-500 font-mono"
+              value={receiver}
+              onChange={(e) => setReceiver(e.target.value)}
+              placeholder="Bitcoin address"
             />
           </div>
+          
+          {(action === 'transfer' || action === 'transfer_rune') && (
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-gray-300 mb-2">Amount (BTC)</label>
+              <input
+                type="text"
+                className="w-full p-3 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-orange-500"
+                value={amount}
+                onChange={(e) => setAmount(e.target.value)}
+                placeholder="0.0001"
+              />
+              <p className="mt-1 text-xs text-gray-400">Amount in BTC (e.g., 0.0001) or satoshis (e.g., 10000)</p>
+            </div>
+          )}
+          
+          {(action === 'etch_rune' || action === 'transfer_rune') && (
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-gray-300 mb-2">Rune Ticker</label>
+              <input
+                type="text"
+                className="w-full p-3 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-orange-500"
+                value={runeTicker}
+                onChange={(e) => setRuneTicker(e.target.value)}
+                placeholder="EXAMPLE"
+              />
+              <p className="mt-1 text-xs text-gray-400">The ticker symbol for your Rune (e.g., BITCOIN)</p>
+            </div>
+          )}
+          
+          {action === 'etch_rune' && (
+            <>
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-300 mb-2">Decimals</label>
+                <input
+                  type="text"
+                  className="w-full p-3 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-orange-500"
+                  value={runeDecimals}
+                  onChange={(e) => setRuneDecimals(e.target.value)}
+                  placeholder="0"
+                />
+                <p className="mt-1 text-xs text-gray-400">Number of decimal places for the Rune</p>
+              </div>
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-300 mb-2">Mint Height</label>
+                <input
+                  type="text"
+                  className="w-full p-3 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-orange-500"
+                  value={runeMintHeight}
+                  onChange={(e) => setRuneMintHeight(e.target.value)}
+                  placeholder="840000"
+                />
+                <p className="mt-1 text-xs text-gray-400">Block height at which the Rune will be minted</p>
+              </div>
+            </>
+          )}
+          
+          {action === 'transfer_rune' && (
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-gray-300 mb-2">Rune Amount</label>
+              <input
+                type="text"
+                className="w-full p-3 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-orange-500"
+                value={runeAmount}
+                onChange={(e) => setRuneAmount(e.target.value)}
+                placeholder="1000"
+              />
+              <p className="mt-1 text-xs text-gray-400">Amount of Runes to transfer</p>
+            </div>
+          )}
+          
+          <button
+            className="w-full p-3 bg-orange-600 text-white rounded-lg hover:bg-orange-700 disabled:bg-gray-600 disabled:text-gray-400 transition-colors font-medium mt-2"
+            onClick={createTransaction}
+            disabled={isLoading || !receiver}
+          >
+            {isLoading ? 
+              <span className="flex items-center justify-center">
+                <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                Processing...
+              </span> : 
+              'Create Transaction'
+            }
+          </button>
         </>
-      )}
-      
-      {action === 'transfer_rune' && (
-        <div className="mb-4">
-          <label className="block text-sm font-medium text-gray-700 mb-1">Rune Amount</label>
-          <input
-            type="text"
-            className="w-full p-2 border border-gray-300 rounded"
-            value={runeAmount}
-            onChange={(e) => setRuneAmount(e.target.value)}
-            placeholder="1000"
-          />
+      ) : (
+        <div className="mb-6">
+          <div className="p-4 bg-green-900 text-green-200 rounded-lg border border-green-700 mb-4">
+            <p className="font-semibold">Transaction signed and broadcast successfully!</p>
+            <p className="mt-2 text-sm">Your transaction has been signed with your NEAR account and broadcast to the Bitcoin network.</p>
+          </div>
+          
+          <button
+            onClick={resetForm}
+            className="w-full p-3 bg-gray-700 text-white rounded-lg hover:bg-gray-600 transition-colors"
+          >
+            Create New Transaction
+          </button>
         </div>
       )}
-      
-      <button
-        className="w-full p-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:bg-gray-400"
-        onClick={createTransaction}
-        disabled={isLoading || !receiver}
-      >
-        {isLoading ? 'Processing...' : 'Create Transaction'}
-      </button>
       
       {error && (
-        <div className="mt-4 p-2 bg-red-100 text-red-700 rounded">
-          {error}
+        <div className="mt-4 p-3 bg-red-900 text-red-200 rounded-lg border border-red-700">
+          <p className="font-medium">Error:</p>
+          <p>{error}</p>
         </div>
       )}
       
-      {transactionPayload && (
-        <div className="mt-4">
-          <h3 className="font-bold mb-2">Transaction Payload:</h3>
-          <pre className="p-2 bg-gray-100 rounded overflow-x-auto text-xs">
-            {JSON.stringify(transactionPayload, null, 2)}
-          </pre>
-          <p className="mt-2 text-sm text-gray-600">
-            Use this payload with the NEAR Chain Signatures service to sign and broadcast the transaction.
-          </p>
-        </div>
+      {transactionPayload && !signedTransaction && (
+        <>
+          <div className="mt-6 p-4 bg-gray-900 rounded-lg border border-gray-700">
+            <h3 className="font-bold mb-3 text-orange-400">Transaction Payload:</h3>
+            <pre className="p-3 bg-black rounded-lg overflow-x-auto text-xs text-green-400 font-mono">
+              {JSON.stringify(transactionPayload, null, 2)}
+            </pre>
+            <p className="mt-3 text-sm text-gray-300">
+              Sign this transaction with your NEAR account to broadcast it to the Bitcoin network.
+            </p>
+          </div>
+          
+          {accountId && (
+            <TransactionSigner 
+              transactionPayload={transactionPayload} 
+              nearAccountId={accountId}
+              onTransactionSigned={handleTransactionSigned}
+            />
+          )}
+        </>
       )}
     </div>
   );
