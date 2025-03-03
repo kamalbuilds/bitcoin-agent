@@ -1,141 +1,183 @@
-# Bitte AI Agent NextJS Template
+# Bitcoin Agent with NEAR Chain Signatures
 
-This template provides a starting point for creating AI agents using the Bitte Protocol with Next.js. It includes pre-configured endpoints and tools that demonstrate common agent functionalities.
+This project demonstrates how to create and sign Bitcoin transactions using NEAR Chain Signatures. It enables users to control Bitcoin assets directly from their NEAR account without needing a separate Bitcoin wallet.
 
 ## Features
 
-- 🤖 Pre-configured AI agent setup
-- 🛠️ Built-in tools and endpoints:
-  - Blockchain information retrieval
-  - NEAR transaction generation
-  - Reddit frontpage fetching
-  - Twitter share intent generation
-  - Coin flip functionality
-- ⚡ Next.js 14 with App Router
-- 🎨 Tailwind CSS for styling
-- 📝 TypeScript support
-- 🔄 Hot reload development environment
+- **NEAR Wallet Integration**: Connect your NEAR wallet to derive Bitcoin addresses
+- **Bitcoin Address Derivation**: Automatically derive Bitcoin addresses from NEAR accounts
+- **Transaction Creation**: Create various types of Bitcoin transactions:
+  - Standard Bitcoin transfers
+  - Rune etching (creating new Runes)
+  - Rune transfers
+- **Transaction Signing**: Sign Bitcoin transactions using NEAR Chain Signatures
+- **Responsive UI**: Modern, user-friendly interface with dark theme
+- **AI Agent Integration**: Seamless integration with Bitte AI for conversational Bitcoin operations
 
-## Quick Start
+## Prerequisites
 
-1. Clone this repository
-2. Configure environment variables (create a `.env` or `.env.local` file)
+- Node.js 18+ and npm
+- NEAR account (for wallet connection and signing)
+- Bitte AI API key (for AI agent integration)
 
-```bash
-# Get your API key from https://key.bitte.ai
-BITTE_API_KEY='your-api-key'
+## Installation
 
-ACCOUNT_ID='your-account.near'
-```
+1. Clone the repository:
+   ```
+   git clone <repository-url>
+   cd agent-next-boilerplate
+   ```
 
-3. Install dependencies:
+2. Install dependencies:
+   ```
+   npm install
+   ```
 
-```bash
-pnpm install
-```
+3. Set up environment variables:
+   ```
+   # Create a .env.local file with the following variables
+   BITTE_API_KEY='your-api-key'
+   ACCOUNT_ID='your-account.near'
+   ```
 
-4. Start the development server:
+4. Run the development server:
+   ```
+   npm run dev
+   ```
 
-```bash
-pnpm run dev
-```
+5. Open [http://localhost:3000](http://localhost:3000) in your browser.
 
-This will:
+## Usage
 
-- Start your Next.js application
-- Launch make-agent
-- Prompt you to sign a message in Bitte wallet to create an API key
-- Launch your agent in the Bitte playground
-- Allow you to freely edit and develop your code in the playground environment
+### Connecting Your NEAR Wallet
 
-5. Build the project locally:
+1. Navigate to the Bitcoin page at `/bitcoin`
+2. Click the "Connect NEAR Wallet" button
+3. Enter your NEAR account ID when prompted
+4. Your Bitcoin address will be derived automatically
 
-```bash
-pnpm run build:dev
-```
+### Creating a Bitcoin Transaction
 
-This will build the project and not trigger `make-agent deploy`
+1. Ensure your NEAR wallet is connected
+2. Select the transaction type:
+   - Bitcoin Transfer: Send BTC to another address
+   - Etch Rune: Create a new Rune
+   - Transfer Rune: Send existing Runes
+3. Fill in the required details:
+   - Receiver address
+   - Amount (for transfers)
+   - Rune details (for Rune operations)
+4. Click "Create Transaction"
 
-- using just `build` will trigger make-agent deploy and not work unless you provide your deployed plugin url using the `-u` flag.
+### Signing and Broadcasting
 
-## Available Tools
+1. Review the transaction payload
+2. Click "Sign with NEAR Wallet"
+3. The transaction will be signed with your NEAR account and broadcast to the Bitcoin network
+4. A transaction hash will be generated upon success
 
-The template includes several pre-built tools:
+## Architecture
 
-### 1. Blockchain Information
+### Key Components
 
-- Endpoint: `/api/tools/get-blockchains`
-- Returns a randomized list of blockchain networks
+- **NearWalletConnector**: Manages NEAR wallet connection and account state
+- **BitcoinTransaction**: Handles transaction creation and UI for transaction forms
+- **TransactionSigner**: Manages the signing process with NEAR Chain Signatures
+- **bitcoinChainSignatures**: Service for deriving addresses and creating transaction payloads
+- **API Endpoints**: RESTful endpoints for transaction creation and signing
 
-### 2. NEAR Transaction Generator
+### Bitcoin Transaction Flow
 
-- Endpoint: `/api/tools/create-near-transaction`
-- Creates NEAR transaction payloads for token transfers
+1. NEAR account connects and is authenticated
+2. Bitcoin address is derived from the NEAR account using a derivation path
+3. Transaction parameters are collected from the user interface
+4. Transaction payload is created via the API
+5. Payload is signed using NEAR Chain Signatures
+6. Signed transaction is broadcast to the Bitcoin network
 
-### 3. EVM Transaction Generator
+## AI Agent Integration
 
-- Endpoint: `/api/tools/create-evm-transaction`
-- Creates EVM transaction payloads for native eth transfers
+This project includes integration with Bitte AI, allowing users to interact with Bitcoin transactions through conversational AI.
 
-### 4. Twitter Share
+### AI Agent Features
 
-- Endpoint: `/api/tools/twitter`
-- Generates Twitter share intent URLs
+- Conversational interface for Bitcoin transactions
+- Natural language processing for transaction creation
+- Contextual help and guidance for users
+- Integration with NEAR Chain Signatures
+- Support for standard transfers and Runes operations
 
-### 5. Coin Flip
+### Using the AI Agent
 
-- Endpoint: `/api/tools/coinflip`
-- Simple random coin flip generator
+1. Deploy your application to a publicly accessible URL
+2. Set up the AI agent in Bitte AI:
+   ```
+   npm run deploy:bitte
+   ```
+3. Access your agent through Bitte AI at https://bitcoin-agent.bitte.ai
+4. Start a conversation with commands like:
+   - "Create a Bitcoin transaction to address bc1q..."
+   - "Etch a new Rune with ticker EXAMPLE"
+   - "Transfer 100 BITCOIN runes to address bc1q..."
 
-### 6. Get User
+### AI Agent Configuration
 
-- Endpoint: `/api/tools/get-user`
-- Returns the user's account ID
+The agent's capabilities are defined in the AI plugin manifest at `/.well-known/ai-plugin.json`. The configuration includes:
 
-## AI Agent Configuration
+- Tool descriptions for Bitcoin transaction operations
+- API endpoint specifications
+- Natural language processing hints
+- Example prompts and use cases
 
-The template includes a pre-configured AI agent manifest at `/.well-known/ai-plugin.json`. You can customize the agent's behavior by modifying the configuration in `/api/ai-plugins/route.ts`. This route generates and returns the manifest object.
+## API Reference
+
+### `GET /api/tools/bitcoin-transaction`
+
+Creates a Bitcoin transaction payload based on the provided parameters.
+
+Query Parameters:
+- `action`: The transaction type (`transfer`, `etch_rune`, or `transfer_rune`)
+- `receiver`: The Bitcoin receiver address
+- `derivationPath`: The derivation path used for the Bitcoin address
+- `accountId`: The NEAR account ID
+- `amount`: The amount in BTC (for transfers)
+- `runeTicker`: The ticker symbol for the Rune
+- `runeAmount`: The amount of Runes to transfer
+- `runeDecimals`: The number of decimal places for the Rune
+- `runeMintHeight`: The block height at which the Rune will be minted
 
 ## Deployment
 
-1. Push your code to GitHub
-2. Deploy to Vercel or your preferred hosting platform
-3. Add your `BITTE_API_KEY` to the environment variables
-4. The `make-agent deploy` command will automatically run during build
+### Deploying to bitte.ai
 
-## Making your own agent
+1. Build the application:
+   ```
+   npm run build
+   ```
 
-Whether you want to add a tool to this boilerplate or make your own standalone agent tool, here's you'll need:
+2. Deploy to bitte.ai:
+   ```
+   npm run deploy:bitte
+   ```
 
-1. Make sure [`make-agent`](https://github.com/BitteProtocol/make-agent) is installed in your project:
+3. Troubleshooting deployment:
+   - If you encounter errors like "Plugin spec not found", ensure your server is correctly serving the AI plugin manifest at `/.well-known/ai-plugin.json`
+   - Verify that your application is accessible at the specified URL
+   - Check that your BITTE_API_KEY is valid and properly configured
 
-```bash
-pnpm install --D make-agent
-```
+## Security Considerations
 
-2. Set up a manifest following the OpenAPI specification that describes your agent and its paths.
-3. Have an api endpoint with the path `GET /api/ai-plugin` that returns your manifest
+- Private keys are never exposed in the browser
+- NEAR Chain Signatures provide secure cross-chain operations
+- All transaction signing happens within the NEAR protocol's secure environment
 
-## Setting up the manifest
+## Resources
 
-Follow the [OpenAPI Specification](https://swagger.io/specification/#schema-1) to add the following fields in the manifest object:
-
-- `openapi`: The OpenAPI specification version that your manifest is following. Usually this is the latest version.
-- `info`: Object containing information about the agent, namely its 'title', 'description' and 'version'.
-- `servers`: Array of objects containing the urls for the deployed instances of the agent.
-- `paths`: Object containing all your agent's paths and their operations.
-- `"x-mb"`: Our custom field, containing the account id of the owner and an 'assistant' object with the agent's metadata, namely the tools it uses, and additional instructions to guide it.
-
-## Learn More
-
-- [Bitte Protocol Documentation](https://docs.bitte.ai)
-- [Next.js Documentation](https://nextjs.org/docs)
-- [OpenAPI Specification](https://swagger.io/specification/)
-
-## Contributing
-
-Contributions are welcome! Please feel free to submit a Pull Request.
+- [NEAR Chain Signatures Documentation](https://docs.near.org/chain-abstraction/chain-signatures)
+- [Bitcoin Protocol Documentation](https://developer.bitcoin.org/)
+- [Runes Protocol Documentation](https://docs.runes.org/)
+- [Bitte AI Documentation](https://docs.bitte.ai)
 
 ## License
 
-MIT License
+This project is licensed under the MIT License.
